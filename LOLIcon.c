@@ -19,29 +19,10 @@
 #include <stdio.h>
 #include "blit.h"
 #include "utils.h"
+#include "LOLIcon.h"
 
-#define LEFT_LABEL_X CENTER(24)
-#define RIGHT_LABEL_X CENTER(0)
-#define printf ksceDebugPrintf
-
-#define CONFIG_PATH     "ur0:LOLIcon/"
-#define TIMER_SECOND    1000000 // 1 second
-#define CUSTOM_BTNS_NUM 12
-
-static SceUID g_hooks[14];
-
-static const char *ERRORS[5]={
-	#define NO_ERROR 0
-	"No error.",
-	#define SAVE_ERROR 1
-	"There was a problem saving.",
-	#define SAVE_GOOD 2
-	"Configuration saved.",
-	#define LOAD_ERROR 3
-	"There was a problem loading.",
-	#define LOAD_GOOD 4
-	"Configuration loaded."
-};
+static SceUID g_hooks[HOOKS_NUM];
+static tai_hook_ref_t ref_hooks[HOOKS_NUM];
 
 typedef struct titleid_config {
 	int mode;
@@ -82,23 +63,10 @@ static int profile_game[] = {444, 222, 222, 166, 222};
 static int profile_max_performance[] = {444, 222, 222, 166, 333};
 static int profile_holy_shit_performance[] = {500, 222, 222, 166, 333};
 static int profile_max_battery[] = {111, 111, 111, 111, 111};
-static int *profiles[5] = {profile_default,profile_game,profile_max_performance, profile_holy_shit_performance, profile_max_battery};
-
-int (*_kscePowerGetGpuEs4ClockFrequency)(int*, int*);
-int (*_kscePowerSetGpuEs4ClockFrequency)(int, int);
-int (*_kscePowerGetGpuClockFrequency)(void);
-int (*_kscePowerSetGpuClockFrequency)(int);
-int (*_ksceKernelGetModuleInfo)(SceUID, SceUID, SceKernelModuleInfo *);
-int (*_ksceKernelGetModuleList)(SceUID pid, int flags1, int flags2, SceUID *modids, size_t *num);
-int (*_ksceKernelExitProcess)(int);
-
-#define ksceKernelExitProcess _ksceKernelExitProcess
-#define ksceKernelGetModuleInfo _ksceKernelGetModuleInfo
-#define ksceKernelGetModuleList _ksceKernelGetModuleList
-#define kscePowerGetGpuEs4ClockFrequency _kscePowerGetGpuEs4ClockFrequency
-#define kscePowerSetGpuEs4ClockFrequency _kscePowerSetGpuEs4ClockFrequency
-#define kscePowerGetGpuClockFrequency _kscePowerGetGpuClockFrequency
-#define kscePowerSetGpuClockFrequency _kscePowerSetGpuClockFrequency
+static int *profiles[5] = {
+	profile_default, profile_game, profile_max_performance,
+	profile_holy_shit_performance, profile_max_battery
+};
 
 void getCustomButtonsLabel() {
 	const char *validBtnL[CUSTOM_BTNS_NUM] = {
@@ -165,8 +133,6 @@ int load_config() {
 		return LOAD_ERROR;
 	}
 
-	printf("loaded %s\n", config_path);
-
 	return LOAD_GOOD;
 }
 
@@ -204,7 +170,6 @@ void load_and_refresh() {
 	error_code = load_config();
 
 	refreshClocks();
-	printf("forcing reset\n");
 }
 
 // This function is from VitaJelly by DrakonPL and Rinne's framecounter
@@ -217,18 +182,23 @@ void doFps() {
 		fps_count = 0;
 	}
 
-	blit_stringf(20, 15, "%d", fps);
+	blit_stringf(20, 35, "%d", fps);
 }
 
 void drawErrors() {
-	if (current_config.hideErrors || error_code <= 0)
+	if (current_config.hideErrors || !error_code)
 		return;
+
+	const char *errors[5]={
+		"No error.", "There was a problem saving.", "Configuration saved.",
+		"There was a problem loading.", "Configuration loaded."
+	};
 
 	if (!curTime || (msg_time == 0 && !showMenu))
 		msg_time = (curTime = ksceKernelGetProcessTimeWideCore()) + TIMER_SECOND * 2;
 
 	if (curTime < msg_time || showMenu)
-		blit_stringf(20, 0, "%s : %d",  ERRORS[error_code], error_code);
+		blit_stringf(20, 0, "%s : %d",  errors[error_code], error_code);
 }
 
 int kscePowerSetClockFrequency_patched(tai_hook_ref_t ref_hook, int port, int freq) {
@@ -254,26 +224,6 @@ int kscePowerSetClockFrequency_patched(tai_hook_ref_t ref_hook, int port, int fr
 	}
 
 	return ret;
-}
-
-static tai_hook_ref_t power_hook1;
-static int power_patched1(int freq) {
-	return kscePowerSetClockFrequency_patched(power_hook1,0,freq);
-}
-
-static tai_hook_ref_t power_hook2;
-static int power_patched2(int freq) {
-	return kscePowerSetClockFrequency_patched(power_hook2,1,freq);
-}
-
-static tai_hook_ref_t power_hook3;
-static int power_patched3(int freq) {
-	return kscePowerSetClockFrequency_patched(power_hook3,2,freq);
-}
-
-static tai_hook_ref_t power_hook4;
-static int power_patched4(int freq) {
-	return kscePowerSetClockFrequency_patched(power_hook4,3,freq);
 }
 
 int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count) {
@@ -580,65 +530,8 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 	return ret;
 }
 
-static tai_hook_ref_t ref_hook1;
-static int keys_patched1(int port, SceCtrlData *ctrl, int count) {
-	int ret, state;
-
-	if (isPspEmu) {
-		ENTER_SYSCALL(state);
-		ret = TAI_CONTINUE(int, ref_hook1, port, ctrl, count);
-		EXIT_SYSCALL(state);
-
-	} else {
-		ret = checkButtons(port, ref_hook1, ctrl, count);
-	}
-
-	return ret;
-}
-
-static tai_hook_ref_t ref_hook2;
-static int keys_patched2(int port, SceCtrlData *ctrl, int count) {
-	return checkButtons(port, ref_hook2, ctrl, count);
-}
-
-static tai_hook_ref_t ref_hook3;
-static int keys_patched3(int port, SceCtrlData *ctrl, int count) {
-	return checkButtons(port, ref_hook3, ctrl, count);
-}
-
-static tai_hook_ref_t ref_hook4;
-static int keys_patched4(int port, SceCtrlData *ctrl, int count) {
-	return checkButtons(port, ref_hook4, ctrl, count);
-}
-
-static tai_hook_ref_t ref_hook5;
-static int keys_patched5(int port, SceCtrlData *ctrl, int count) {
-	return checkButtons(port, ref_hook5, ctrl, count);
-}
-
-static tai_hook_ref_t ref_hook6;
-static int keys_patched6(int port, SceCtrlData *ctrl, int count) {
-	return checkButtons(port, ref_hook6, ctrl, count);
-}
-
-static tai_hook_ref_t ref_hook7;
-static int keys_patched7(int port, SceCtrlData *ctrl, int count) {
-	return checkButtons(port, ref_hook7, ctrl, count);
-}
-
-static tai_hook_ref_t ref_hook8;
-static int keys_patched8(int port, SceCtrlData *ctrl, int count) {
-	return checkButtons(port, ref_hook8, ctrl, count);
-}
-
 void drawMenu() {
 	int entries = 0;
-	#define MENU_OPTION_F(TEXT,...)\
-		blit_set_color(0x00FFFFFF, (pos != entries) ? 0x00FF0000 : 0x0000FF00);\
-		blit_stringf(LEFT_LABEL_X, 120+16*entries++, (TEXT), __VA_ARGS__);
-	#define MENU_OPTION(TEXT,...)\
-		blit_set_color(0x00FFFFFF, (pos != entries) ? 0x00FF0000 : 0x0000FF00);\
-		blit_stringf(LEFT_LABEL_X, 120+16*entries++, (TEXT));
 
 	blit_set_color(0x00FFFFFF, 0x00FF0000);
 
@@ -716,14 +609,36 @@ void drawMenu() {
 		pos = entries -1;
 }
 
-static tai_hook_ref_t ref_hook0;
+int getFindModNameFromPID(int pid, char *mod_name, int size) {
+	SceKernelModuleInfo sceinfo;
+	sceinfo.size = sizeof(sceinfo);
+	int ret;
+	size_t count;
+	SceUID modids[128];
+
+	if ((ret = ksceKernelGetModuleList(pid, 0xff, 1, modids, &count)) == 0) {
+		for (int i=0; i<count; ++i) {
+			ret = ksceKernelGetModuleInfo(pid, modids[count - 1], &sceinfo);
+
+			if (ret == 0 && strncmp(mod_name, sceinfo.module_name, size) == 0)
+				return 1;
+		}
+
+		return 0;
+	}
+
+	return ret;
+}
+
 int _sceDisplaySetFrameBufInternalForDriver(int fb_id1, int fb_id2, const SceDisplayFrameBuf *pParam, int sync) {
+	int battPosX = 35;
+
 	if (isPspEmu || !fb_id1 || !pParam)
-		return TAI_CONTINUE(int, ref_hook0, fb_id1, fb_id2, pParam, sync);
+		return TAI_CONTINUE(int, ref_hooks[0], fb_id1, fb_id2, pParam, sync);
 
 	if (!shell_pid && fb_id2) { // 3.68 fix
 		if (ksceKernelGetProcessTitleId(ksceKernelGetProcessId(), titleid, sizeof(titleid)) == 0 && titleid[0] != 0) {
-			if (strncmp("main",titleid, sizeof(titleid)) == 0) {
+			if (strncmp("main", titleid, sizeof(titleid)) == 0) {
 				shell_pid = ksceKernelGetProcessId();
 				load_and_refresh();
 			}
@@ -731,7 +646,7 @@ int _sceDisplaySetFrameBufInternalForDriver(int fb_id1, int fb_id2, const SceDis
 	}
 
 	SceDisplayFrameBuf kfb;
-	memset(&kfb,0,sizeof(kfb));
+	memset(&kfb, 0, sizeof(kfb));
 	memcpy(&kfb, pParam, sizeof(SceDisplayFrameBuf));
 	blit_set_frame_buf(&kfb);
 
@@ -743,52 +658,78 @@ int _sceDisplaySetFrameBufInternalForDriver(int fb_id1, int fb_id2, const SceDis
 		drawErrors();
 		curTime = ksceKernelGetProcessTimeWideCore();
 
-		if (current_config.showFPS)
+		if (current_config.showFPS) {
+			battPosX = 60;
 			doFps();
-
-		if (current_config.showBat)
-			blit_stringf(20, 30, "%02d\%", kscePowerGetBatteryLifePercent());
-	}
-
-	return TAI_CONTINUE(int, ref_hook0, fb_id1, fb_id2, pParam, sync);
-}
-
-int getFindModNameFromPID(int pid, char *mod_name, int size) {
-	SceKernelModuleInfo sceinfo;
-	sceinfo.size = sizeof(sceinfo);
-	int ret;
-	size_t count;
-	SceUID modids[128];
-
-	if ((ret = ksceKernelGetModuleList(pid, 0xff, 1, modids, &count)) == 0) {
-		for (int i=0; i<count; ++i) {
-			if ((ret = ksceKernelGetModuleInfo(pid, modids[count - 1], &sceinfo)) == 0) {
-				if (strncmp(mod_name, sceinfo.module_name, size) == 0)
-					return 1;
-			}
 		}
 
-		return 0;
+		if (current_config.showBat)
+			blit_stringf(20, battPosX, "%02d\%", kscePowerGetBatteryLifePercent());
+	}
+
+	return TAI_CONTINUE(int, ref_hooks[0], fb_id1, fb_id2, pParam, sync);
+}
+
+static int power_patched1(int freq) { return kscePowerSetClockFrequency_patched(ref_hooks[1], 0, freq); }
+static int power_patched2(int freq) { return kscePowerSetClockFrequency_patched(ref_hooks[2], 1, freq); }
+static int power_patched3(int freq) { return kscePowerSetClockFrequency_patched(ref_hooks[3], 2, freq); }
+static int power_patched4(int freq) { return kscePowerSetClockFrequency_patched(ref_hooks[4], 3, freq); }
+
+static int keys_patched1(int port, SceCtrlData *ctrl, int count) {
+	int ret, state;
+
+	if (isPspEmu) {
+		ENTER_SYSCALL(state);
+		ret = TAI_CONTINUE(int, ref_hooks[5], port, ctrl, count);
+		EXIT_SYSCALL(state);
+
+	} else {
+		ret = checkButtons(port, ref_hooks[5], ctrl, count);
 	}
 
 	return ret;
 }
 
-static tai_hook_ref_t process_hook0;
+static int keys_patched2(int port, SceCtrlData *ctrl, int count) {
+	return checkButtons(port, ref_hooks[6], ctrl, count);
+}
+
+static int keys_patched3(int port, SceCtrlData *ctrl, int count) {
+	return checkButtons(port, ref_hooks[7], ctrl, count);
+}
+
+static int keys_patched4(int port, SceCtrlData *ctrl, int count) {
+	return checkButtons(port, ref_hooks[8], ctrl, count);
+}
+
+static int keys_patched5(int port, SceCtrlData *ctrl, int count) {
+	return checkButtons(port, ref_hooks[9], ctrl, count);
+}
+
+static int keys_patched6(int port, SceCtrlData *ctrl, int count) {
+	return checkButtons(port, ref_hooks[10], ctrl, count);
+}
+
+static int keys_patched7(int port, SceCtrlData *ctrl, int count) {
+	return checkButtons(port, ref_hooks[11], ctrl, count);
+}
+
+static int keys_patched8(int port, SceCtrlData *ctrl, int count) {
+	return checkButtons(port, ref_hooks[12], ctrl, count);
+}
+
 int SceProcEventForDriver_414CC813(int pid, int id, int r3, int r4, int r5, int r6) {
 	SceKernelProcessInfo info;
 	info.size = 0xE8;
 
-	if (strncmp("main",titleid, sizeof(titleid)) == 0) {
+	if (strncmp("main", titleid, sizeof(titleid)) == 0) {
 		switch (id) {
 			case 0x1: // startup
-				if (!shell_pid && ksceKernelGetProcessInfo(pid, &info) == 0) {
-					if (info.ppid == KERNEL_PID) {
-						shell_pid = pid;
-						strncpy(titleid, "main", sizeof("main"));
-						load_and_refresh();
-						break;
-					}
+				if (!shell_pid && ksceKernelGetProcessInfo(pid, &info) == 0 && info.ppid == KERNEL_PID) {
+					shell_pid = pid;
+					strncpy(titleid, "main", sizeof("main"));
+					load_and_refresh();
+					break;
 				}
 			case 0x5:
 				isPspEmu = getFindModNameFromPID(pid, "adrenaline", sizeof("adrenaline")) ||
@@ -815,9 +756,25 @@ int SceProcEventForDriver_414CC813(int pid, int id, int r3, int r4, int r5, int 
 		load_and_refresh();
 	}
 
-	return TAI_CONTINUE(int, process_hook0, pid, id, r3, r4, r5, r6);
+	return TAI_CONTINUE(int, ref_hooks[13], pid, id, r3, r4, r5, r6);
 }
 
+/*
+	Hooks
+
+	[1] scePowerSetArmClockFrequency
+	[2] scePowerSetBusClockFrequency
+	[3] scePowerSetGpuClockFrequency
+	[4] scePowerSetGpuXbarClockFrequency
+	[5] sceCtrlPeekBufferPositive
+	[6] sceCtrlPeekBufferPositive2
+	[7] sceCtrlReadBufferPositive
+	[8] sceCtrlReadBufferPositiveExt2
+	[9] sceCtrlPeekBufferPositiveExt2
+	[10] sceCtrlPeekBufferPositiveExt
+	[11] sceCtrlReadBufferPositive2
+	[12] sceCtrlReadBufferPositiveExt
+*/
 void _start() __attribute__ ((weak, alias ("module_start")));
 int module_start(SceSize argc, const void *args) {
 	ksceIoMkdir(CONFIG_PATH,6);
@@ -834,7 +791,7 @@ int module_start(SceSize argc, const void *args) {
 	clock_r2 = (unsigned int *)pa2va(0xE3103004);
 
 	taiGetModuleInfoForKernel(KERNEL_PID, "ScePower", &tai_info);
-	module_get_offset(KERNEL_PID, tai_info.modid, 1,  0x4124 + 0xA4, (uintptr_t)&clock_speed);
+	module_get_offset(KERNEL_PID, tai_info.modid, 1, 0x4124 + 0xA4, (uintptr_t)&clock_speed);
 
 	memset(&titleid, 0, sizeof(titleid));
 	strncpy(titleid, "main", sizeof(titleid));
@@ -850,52 +807,41 @@ int module_start(SceSize argc, const void *args) {
 
 	refreshClocks();
 
-	if (module_get_export_func(KERNEL_PID, "SceKernelModulemgr", 0xC445FA63, 0xD269F915 , &_ksceKernelGetModuleInfo))
-		module_get_export_func(KERNEL_PID, "SceKernelModulemgr", 0x92C9FFC2, 0xDAA90093 , &_ksceKernelGetModuleInfo);
+	if (module_get_export_func(KERNEL_PID, "SceKernelModulemgr", 0xC445FA63, 0xD269F915, &_ksceKernelGetModuleInfo))
+		module_get_export_func(KERNEL_PID, "SceKernelModulemgr", 0x92C9FFC2, 0xDAA90093, &_ksceKernelGetModuleInfo);
 
-	if (module_get_export_func(KERNEL_PID, "SceKernelModulemgr", 0xC445FA63, 0x97CF7B4E , &_ksceKernelGetModuleList))
-		module_get_export_func(KERNEL_PID, "SceKernelModulemgr", 0x92C9FFC2, 0xB72C75A4 , &_ksceKernelGetModuleList);
+	if (module_get_export_func(KERNEL_PID, "SceKernelModulemgr", 0xC445FA63, 0x97CF7B4E, &_ksceKernelGetModuleList))
+		module_get_export_func(KERNEL_PID, "SceKernelModulemgr", 0x92C9FFC2, 0xB72C75A4, &_ksceKernelGetModuleList);
 
-	if (module_get_export_func(KERNEL_PID, "SceProcessmgr", 0x7A69DE86, 0x4CA7DC42 , &_ksceKernelExitProcess))
-		module_get_export_func(KERNEL_PID, "SceProcessmgr", 0xEB1F8EF7, 0x905621F9 , &_ksceKernelExitProcess);
+	if (module_get_export_func(KERNEL_PID, "SceProcessmgr", 0x7A69DE86, 0x4CA7DC42, &_ksceKernelExitProcess))
+		module_get_export_func(KERNEL_PID, "SceProcessmgr", 0xEB1F8EF7, 0x905621F9, &_ksceKernelExitProcess);
 
-	g_hooks[0] = taiHookFunctionExportForKernel(KERNEL_PID, &ref_hook0, "SceDisplay",0x9FED47AC,0x16466675, _sceDisplaySetFrameBufInternalForDriver);
-	g_hooks[10] = taiHookFunctionExportForKernel(KERNEL_PID, &power_hook1, "ScePower", 0x1590166F, 0x74DB5AE5,power_patched1); // scePowerSetArmClockFrequency
-	g_hooks[11] = taiHookFunctionExportForKernel(KERNEL_PID,	&power_hook2, "ScePower", 0x1590166F, 0xB8D7B3FB, power_patched2); // scePowerSetBusClockFrequency
-	g_hooks[12] = taiHookFunctionExportForKernel(KERNEL_PID, &power_hook3, "ScePower", 0x1590166F, 0x264C24FC, power_patched3); // scePowerSetGpuClockFrequency
-	g_hooks[13] = taiHookFunctionExportForKernel(KERNEL_PID, &power_hook4, "ScePower", 0x1590166F, 0xA7739DBE, power_patched4); // scePowerSetGpuXbarClockFrequency
+	g_hooks[0] = taiHookFunctionExportForKernel(KERNEL_PID, &ref_hooks[0], "SceDisplay", 0x9FED47AC, 0x16466675, _sceDisplaySetFrameBufInternalForDriver);
+	g_hooks[1] = taiHookFunctionExportForKernel(KERNEL_PID, &ref_hooks[1], "ScePower", 0x1590166F, 0x74DB5AE5, power_patched1);
+	g_hooks[2] = taiHookFunctionExportForKernel(KERNEL_PID, &ref_hooks[2], "ScePower", 0x1590166F, 0xB8D7B3FB, power_patched2);
+	g_hooks[3] = taiHookFunctionExportForKernel(KERNEL_PID, &ref_hooks[3], "ScePower", 0x1590166F, 0x264C24FC, power_patched3);
+	g_hooks[4] = taiHookFunctionExportForKernel(KERNEL_PID, &ref_hooks[4], "ScePower", 0x1590166F, 0xA7739DBE, power_patched4);
 
 	taiGetModuleInfoForKernel(KERNEL_PID, "SceCtrl", &tai_info);
 
-	g_hooks[1] = taiHookFunctionExportForKernel(KERNEL_PID, &ref_hook1, "SceCtrl", TAI_ANY_LIBRARY, 0xEA1D3A34, keys_patched1); // sceCtrlPeekBufferPositive
-	g_hooks[2] =  taiHookFunctionOffsetForKernel(KERNEL_PID, &ref_hook2, tai_info.modid, 0, 0x3EF8, 1, keys_patched2); // sceCtrlPeekBufferPositive2
-	g_hooks[3] = taiHookFunctionExportForKernel(KERNEL_PID, &ref_hook3, "SceCtrl", TAI_ANY_LIBRARY, 0x9B96A1AA, keys_patched3); // sceCtrlReadBufferPositive
-	g_hooks[4] =  taiHookFunctionOffsetForKernel(KERNEL_PID, &ref_hook4, tai_info.modid, 0, 0x4E14, 1, keys_patched4); // sceCtrlReadBufferPositiveExt2
-	g_hooks[5] =  taiHookFunctionOffsetForKernel(KERNEL_PID, &ref_hook5, tai_info.modid, 0, 0x4B48, 1, keys_patched5); // sceCtrlPeekBufferPositiveExt2
-	g_hooks[6] =  taiHookFunctionOffsetForKernel(KERNEL_PID, &ref_hook6, tai_info.modid, 0, 0x3928, 1, keys_patched6); // sceCtrlPeekBufferPositiveExt
-    g_hooks[7] =  taiHookFunctionOffsetForKernel(KERNEL_PID, &ref_hook7, tai_info.modid, 0, 0x449C, 1, keys_patched7); // sceCtrlReadBufferPositive2
-    g_hooks[8] =  taiHookFunctionOffsetForKernel(KERNEL_PID, &ref_hook8, tai_info.modid, 0, 0x3BCC, 1, keys_patched8); // sceCtrlReadBufferPositiveExt
-	g_hooks[9] = taiHookFunctionImportForKernel(KERNEL_PID, &process_hook0, "SceProcessmgr", TAI_ANY_LIBRARY, 0x414CC813, SceProcEventForDriver_414CC813);
+	g_hooks[5] = taiHookFunctionExportForKernel(KERNEL_PID, &ref_hooks[5], "SceCtrl", TAI_ANY_LIBRARY, 0xEA1D3A34, keys_patched1);
+	g_hooks[6] = taiHookFunctionOffsetForKernel(KERNEL_PID, &ref_hooks[6], tai_info.modid, 0, 0x3EF8, 1, keys_patched2);
+	g_hooks[7] = taiHookFunctionExportForKernel(KERNEL_PID, &ref_hooks[7], "SceCtrl", TAI_ANY_LIBRARY, 0x9B96A1AA, keys_patched3);
+	g_hooks[8] = taiHookFunctionOffsetForKernel(KERNEL_PID, &ref_hooks[8], tai_info.modid, 0, 0x4E14, 1, keys_patched4);
+	g_hooks[9] = taiHookFunctionOffsetForKernel(KERNEL_PID, &ref_hooks[9], tai_info.modid, 0, 0x4B48, 1, keys_patched5);
+	g_hooks[10] = taiHookFunctionOffsetForKernel(KERNEL_PID, &ref_hooks[10], tai_info.modid, 0, 0x3928, 1, keys_patched6);
+    g_hooks[11] = taiHookFunctionOffsetForKernel(KERNEL_PID, &ref_hooks[11], tai_info.modid, 0, 0x449C, 1, keys_patched7);
+    g_hooks[12] = taiHookFunctionOffsetForKernel(KERNEL_PID, &ref_hooks[12], tai_info.modid, 0, 0x3BCC, 1, keys_patched8);
+	g_hooks[13] = taiHookFunctionImportForKernel(KERNEL_PID, &ref_hooks[13], "SceProcessmgr", TAI_ANY_LIBRARY, 0x414CC813, SceProcEventForDriver_414CC813);
 
 	return SCE_KERNEL_START_SUCCESS;
 }
 
 int module_stop(SceSize argc, const void *args) {
-	// free hooks that didn't fail
-	if (g_hooks[0] >= 0) taiHookReleaseForKernel(g_hooks[0], ref_hook0);
-	if (g_hooks[1] >= 0) taiHookReleaseForKernel(g_hooks[1], ref_hook1);
-	if (g_hooks[2] >= 0) taiHookReleaseForKernel(g_hooks[2], ref_hook2);
-	if (g_hooks[3] >= 0) taiHookReleaseForKernel(g_hooks[3], ref_hook3);
-	if (g_hooks[4] >= 0) taiHookReleaseForKernel(g_hooks[4], ref_hook4);
-	if (g_hooks[5] >= 0) taiHookReleaseForKernel(g_hooks[5], ref_hook5);
-	if (g_hooks[6] >= 0) taiHookReleaseForKernel(g_hooks[6], ref_hook6);
-	if (g_hooks[7] >= 0) taiHookReleaseForKernel(g_hooks[7], ref_hook7);
-	if (g_hooks[8] >= 0) taiHookReleaseForKernel(g_hooks[8], ref_hook8);
-	if (g_hooks[9] >= 0) taiHookReleaseForKernel(g_hooks[9], process_hook0);
-	if (g_hooks[10] >= 0) taiHookReleaseForKernel(g_hooks[10], power_hook1);
-	if (g_hooks[11] >= 0) taiHookReleaseForKernel(g_hooks[11], power_hook2);
-	if (g_hooks[12] >= 0) taiHookReleaseForKernel(g_hooks[12], power_hook3);
-	if (g_hooks[13] >= 0) taiHookReleaseForKernel(g_hooks[13], power_hook4);
+	for (int i=0; i<HOOKS_NUM; ++i) {
+		if (g_hooks[i] >= 0)
+			taiHookReleaseForKernel(g_hooks[i], ref_hooks[i]);
+	}
 
 	return SCE_KERNEL_STOP_SUCCESS;
 }
