@@ -17,6 +17,7 @@
 #include <string.h>
 #include <sys/syslimits.h>
 #include <stdio.h>
+#include <math.h>
 #include "blit.h"
 #include "utils.h"
 #include "LOLIcon.h"
@@ -25,6 +26,7 @@ static SceUID g_hooks[HOOKS_NUM];
 static tai_hook_ref_t ref_hooks[HOOKS_NUM];
 
 typedef struct titleid_config {
+	int autoMode;
 	int mode;
 	int hideErrors;
 	int showBat;
@@ -42,11 +44,12 @@ static titleid_config current_config;
 static char titleid[32];
 uint32_t current_pid = 0, shell_pid = 0;
 
+static uint64_t ctrl_timestamp;
 int error_code = NO_ERROR;
+unsigned aModeTimer = TIMER_AMODE;
 int showMenu = 0, pos = 0, isReseting = 0, forceReset = 0, isPspEmu = 0, isShell = 1;
-int page = 0, fps;
-static uint64_t ctrl_timestamp, msg_time = 0;
-long curTime = 0, lateTime = 0, fps_count = 0;
+int page = 0, aModePowSaveTry = 2, aModeLastFps = 50, maxFps = 0, fps;
+long curTime = 0, lateTime = 0, lateTimeAMode = 0, lateTimeAModeR = 0, lateTimeMsg = 0, fps_count = 0;
 static char show1[10], show2[10], cls1[10], cls2[10];
 int btn1Idx = 0, btn2Idx = 0, btn3Idx = 0, btn4Idx = 0;
 SceCtrlButtons validBtn[] = {
@@ -58,14 +61,14 @@ SceCtrlButtons validBtn[] = {
 unsigned int *clock_r1, *clock_r2;
 uint32_t *clock_speed;
 
+static int profile_max_battery[] = {111, 111, 111, 111, 111};
 static int profile_default[] = {266, 166, 166, 111, 166};
 static int profile_game[] = {444, 222, 222, 166, 222};
 static int profile_max_performance[] = {444, 222, 222, 166, 333};
 static int profile_holy_shit_performance[] = {500, 222, 222, 166, 333};
-static int profile_max_battery[] = {111, 111, 111, 111, 111};
 static int *profiles[5] = {
-	profile_default, profile_game, profile_max_performance,
-	profile_holy_shit_performance, profile_max_battery
+	profile_max_battery, profile_default, profile_game,
+	profile_max_performance, profile_holy_shit_performance
 };
 
 void getCustomButtonsLabel() {
@@ -112,6 +115,7 @@ int isValidCustomBtnCombo() {
 
 void reset_config() {
 	memset(&current_config, 0, sizeof(current_config));
+	current_config.mode = 2;
 	current_config.sbtn1 = SCE_CTRL_SELECT;
 	current_config.sbtn2 = SCE_CTRL_UP;
 	current_config.cbtn1 = SCE_CTRL_SELECT;
@@ -168,6 +172,7 @@ void refreshClocks() {
 
 void load_and_refresh() {
 	error_code = load_config();
+	aModePowSaveTry = 2;
 
 	refreshClocks();
 }
@@ -182,7 +187,48 @@ void doFps() {
 		fps_count = 0;
 	}
 
-	blit_stringf(20, 35, "%d", fps);
+	return;
+}
+
+void adjustClock() {
+	maxFps = (fps-1) > maxFps ? fps-1:maxFps;
+
+	if (isShell) {
+		if (current_config.mode != 2) {
+			current_config.mode = 2;
+			refreshClocks();
+		}
+
+		return;
+
+	} else if ((curTime - lateTimeAMode) > aModeTimer) {
+		int fpsDiff;
+
+		lateTimeAMode = curTime;
+		fpsDiff = abs(fps-aModeLastFps);
+
+		if ((fpsDiff > 6 || fps < maxFps) && current_config.mode < 4) {
+			--aModePowSaveTry;
+			aModeTimer = TIMER_AMODE;
+			++current_config.mode;
+			refreshClocks();
+
+		} else if (aModePowSaveTry && !fpsDiff && current_config.mode > 1) {
+			aModeTimer = TIMER_SECOND*2;
+			--current_config.mode;
+			refreshClocks();
+		}
+
+		aModeLastFps = fps;
+	}
+
+	if ((curTime - lateTimeAModeR) > TIMER_AMODE_R) {
+		lateTimeAModeR = curTime;
+		aModePowSaveTry = 1;
+		maxFps = 0;
+	}
+
+	return;
 }
 
 void drawErrors() {
@@ -190,15 +236,16 @@ void drawErrors() {
 		return;
 
 	const char *errors[5]={
-		"No error.", "There was a problem saving.", "Configuration saved.",
+		"", "There was a problem saving.", "Configuration saved.",
 		"There was a problem loading.", "Configuration loaded."
 	};
 
-	if (!curTime || (msg_time == 0 && !showMenu))
-		msg_time = (curTime = ksceKernelGetProcessTimeWideCore()) + TIMER_SECOND * 2;
+	blit_stringf(20, 0, "%s",  errors[error_code]);
 
-	if (curTime < msg_time || showMenu)
-		blit_stringf(20, 0, "%s : %d",  errors[error_code], error_code);
+	if ((curTime - lateTimeMsg) > 3000000) {
+		error_code = 0;
+		lateTimeMsg = curTime;
+	}
 }
 
 int kscePowerSetClockFrequency_patched(tai_hook_ref_t ref_hook, int port, int freq) {
@@ -257,10 +304,17 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 				if (buttons & SCE_CTRL_LEFT) {
 					switch (page) {
 						case 1: {
-							if (current_config.mode > 0) {
-								ctrl_timestamp = ctrl->timeStamp;
-								--current_config.mode;
-								refreshClocks();
+							switch (pos) {
+								case 0: {
+									if (!current_config.autoMode && current_config.mode > 0) {
+										ctrl_timestamp = ctrl->timeStamp;
+										--current_config.mode;
+										refreshClocks();
+									}
+								}
+									break;
+								default:
+									break;
 							}
 						}
 							break;
@@ -336,10 +390,17 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 				} else if (buttons & SCE_CTRL_RIGHT) {
 					switch (page) {
 						case 1: {
-							if (current_config.mode < 4) {
-								ctrl_timestamp = ctrl->timeStamp;
-								++current_config.mode;
-								refreshClocks();
+							switch (pos) {
+								case 0: {
+									if (!current_config.autoMode && current_config.mode < 4) {
+										ctrl_timestamp = ctrl->timeStamp;
+										++current_config.mode;
+										refreshClocks();
+									}
+								}
+									break;
+								default:
+									break;
 							}
 						}
 							break;
@@ -466,6 +527,18 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 							}
 						}
 							break;
+						case 1: {
+							switch (pos) {
+								case 1: {
+									current_config.autoMode = !current_config.autoMode;
+									aModePowSaveTry = 2;
+								}
+									break;
+								default:
+									break;
+							}
+						}
+							break;
 						case 2: {
 							switch (pos) {
 								case 0: {
@@ -524,7 +597,8 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 	} else if (forceReset == 2) {
 		isShell = 0;
 		load_and_refresh();
-		msg_time = curTime = fps_count = lateTime = forceReset = 0;
+		curTime = fps_count = lateTime = lateTimeAMode = 0;
+		lateTimeAModeR = maxFps = lateTimeMsg = forceReset = 0;
 	}
 
 	return ret;
@@ -548,43 +622,46 @@ void drawMenu() {
 			MENU_OPTION("Shutdown vita");
 			break;
 		case 1:
-			blit_stringf(LEFT_LABEL_X, 88, "ACTUAL OVERCLOCK");
-			blit_stringf(LEFT_LABEL_X, 120, "PROFILE    ");
+			blit_stringf(LEFT_LABEL_X, 88, "CLOCK SETTINGS");
 
-			switch (current_config.mode) {
-				case 4:
-					blit_stringf(RIGHT_LABEL_X, 120, "Max Batt.");
-					break;
-				case 3:
-					blit_stringf(RIGHT_LABEL_X, 120, "Holy Shit.");
-					break;
-				case 2:
-					blit_stringf(RIGHT_LABEL_X, 120, "Max Perf.");
-					break;
-				case 1:
-					blit_stringf(RIGHT_LABEL_X, 120, "Game Def.");
-					break;
-				case 0:
-					blit_stringf(RIGHT_LABEL_X, 120, "Default  ");
-					break;
-				default:
-					break;
-			}
-
-			blit_stringf(LEFT_LABEL_X, 136, "CPU CLOCK  ");
-			blit_stringf(RIGHT_LABEL_X, 136, "%-4d  MHz - %d:%d", kscePowerGetArmClockFrequency(), *clock_r1, *clock_r2);
-			blit_stringf(LEFT_LABEL_X, 152, "BUS CLOCK  ");
-			blit_stringf(RIGHT_LABEL_X, 152, "%-4d  MHz", kscePowerGetBusClockFrequency());
-			blit_stringf(LEFT_LABEL_X, 168, "GPUes4CLK  ");
+			blit_stringf(LEFT_LABEL_X, 120, "CPU     ");
+			blit_stringf(RIGHT_LABEL_X, 120, "%-4d  MHz - %d:%d", kscePowerGetArmClockFrequency(), *clock_r1, *clock_r2);
+			blit_stringf(LEFT_LABEL_X, 136, "BUS     ");
+			blit_stringf(RIGHT_LABEL_X, 136, "%-4d  MHz", kscePowerGetBusClockFrequency());
 
 			int r1, r2;
 			kscePowerGetGpuEs4ClockFrequency(&r1, &r2);
+			blit_stringf(LEFT_LABEL_X, 152, "GPUes4  ");
+			blit_stringf(RIGHT_LABEL_X, 152, "%-d   MHz", r1);
 
-			blit_stringf(RIGHT_LABEL_X, 168, "%-d   MHz", r1);
-			blit_stringf(LEFT_LABEL_X, 184, "XBAR  CLK  ");
-			blit_stringf(RIGHT_LABEL_X, 184, "%-4d  MHz", kscePowerGetGpuXbarClockFrequency());
-			blit_stringf(LEFT_LABEL_X, 200, "GPU CLOCK  ");
-			blit_stringf(RIGHT_LABEL_X, 200, "%-4d  MHz", kscePowerGetGpuClockFrequency());
+			blit_stringf(LEFT_LABEL_X, 168, "XBAR    ");
+			blit_stringf(RIGHT_LABEL_X, 168, "%-4d  MHz", kscePowerGetGpuXbarClockFrequency());
+			blit_stringf(LEFT_LABEL_X, 184, "GPU     ");
+			blit_stringf(RIGHT_LABEL_X, 184, "%-4d  MHz", kscePowerGetGpuClockFrequency());
+
+			if (!current_config.autoMode) {
+				switch (current_config.mode) {
+					case 0:
+						MENU_OPTION_C(216, "Profile: Max Batt.");
+						break;
+					case 2:
+						MENU_OPTION_C(216, "Profile: Game Def.");
+						break;
+					case 3:
+						MENU_OPTION_C(216, "Profile: Max Perf.");
+						break;
+					case 4:
+						MENU_OPTION_C(216, "Profile: Holy Shit.");
+						break;
+					default: // 1
+						MENU_OPTION_C(216, "Profile: Default");
+						break;
+				}
+			} else {
+				MENU_OPTION_C(216, "Profile: Auto");
+			}
+
+			MENU_OPTION_FC(216, "Auto Mode %d", current_config.autoMode);
 			break;
 		case 2:
 			blit_stringf(LEFT_LABEL_X, 88, "OSD");
@@ -655,16 +732,23 @@ int _sceDisplaySetFrameBufInternalForDriver(int fb_id1, int fb_id2, const SceDis
 
 	blit_set_color(0x0000FF00, 0xff000000);
 	if ((isShell && shell_pid == ksceKernelGetProcessId()) || (!isShell && current_pid == ksceKernelGetProcessId())) {
-		drawErrors();
 		curTime = ksceKernelGetProcessTimeWideCore();
 
-		if (current_config.showFPS) {
-			battPosX = 60;
+		drawErrors();
+
+		if (current_config.showFPS || current_config.autoMode)
 			doFps();
+
+		if (current_config.showFPS) {
+			battPosX = 65;
+			blit_stringf(15, 40, "%d", fps);
 		}
 
+		if (current_config.autoMode)
+			adjustClock();
+
 		if (current_config.showBat)
-			blit_stringf(20, battPosX, "%02d\%", kscePowerGetBatteryLifePercent());
+			blit_stringf(15, battPosX, "%02d\%", kscePowerGetBatteryLifePercent());
 	}
 
 	return TAI_CONTINUE(int, ref_hooks[0], fb_id1, fb_id2, pParam, sync);
@@ -741,7 +825,7 @@ int SceProcEventForDriver_414CC813(int pid, int id, int r3, int r4, int r5, int 
 
 				} else {
 					ksceKernelGetProcessTitleId(pid, titleid, sizeof(titleid));
-					showMenu = isShell = current_config.mode = 0;
+					showMenu = isShell = current_config.mode = 2;
 				}
 				break;
 			default:
@@ -749,7 +833,8 @@ int SceProcEventForDriver_414CC813(int pid, int id, int r3, int r4, int r5, int 
 		}
 
 	} else if ((id == 0x4 || id == 0x3) && (current_pid == pid || isPspEmu)) {
-		msg_time = curTime = fps_count = lateTime = 0;
+		curTime = fps_count = lateTime = lateTimeAMode = 0;
+		lateTimeAModeR = maxFps = lateTimeMsg = 0;
 		isShell = 1;
 		strncpy(titleid, "main", sizeof("main"));
 		isPspEmu = 0;
@@ -802,9 +887,6 @@ int module_start(SceSize argc, const void *args) {
 	memset(&cls2, 0, sizeof(cls2));
 
 	reset_config();
-
-	current_config.mode = 1;
-
 	refreshClocks();
 
 	if (module_get_export_func(KERNEL_PID, "SceKernelModulemgr", 0xC445FA63, 0xD269F915, &_ksceKernelGetModuleInfo))
