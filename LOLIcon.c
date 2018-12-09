@@ -762,7 +762,10 @@ int SceProcEventForDriver_414CC813(int pid, int id, int r3, int r4, int r5, int 
 
 				} else {
 					ksceKernelGetProcessTitleId(pid, titleid, sizeof(titleid));
-					showMenu = isShell = current_config.mode = 2;
+					showMenu = isShell = 0;
+					current_config.autoMode = 0;
+					current_config.mode = 1;
+					refreshClocks();
 				}
 				break;
 			default:
