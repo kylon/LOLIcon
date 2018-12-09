@@ -123,7 +123,7 @@ void reset_config() {
 }
 
 int load_config() {
-	snprintf(config_path, sizeof(config_path), CONFIG_PATH"%s/config.bin", titleid);
+	snprintf(config_path, sizeof(config_path), CONFIG_PATH"%s.bin", titleid);
 
 	if (!FileExists(config_path)) {
 		snprintf(config_path, sizeof(config_path), CONFIG_PATH"default.bin");
@@ -140,19 +140,11 @@ int load_config() {
 	return LOAD_GOOD;
 }
 
-int save_config() {
-	snprintf(config_path, sizeof(config_path), CONFIG_PATH"%s", titleid);
-	ksceIoMkdir(config_path, 6);
-	snprintf(config_path, sizeof(config_path), CONFIG_PATH"%s/config.bin", titleid);
-
-	if (WriteFile(config_path, &current_config, sizeof(current_config)) < 0)
-		return SAVE_ERROR;
-
-	return SAVE_GOOD;
-}
-
-int save_default_config() {
-	snprintf(config_path, sizeof(config_path), CONFIG_PATH"default.bin");
+int save_config(int saveDef) {
+	if (saveDef)
+		snprintf(config_path, sizeof(config_path), CONFIG_PATH"default.bin");
+	else
+		snprintf(config_path, sizeof(config_path), CONFIG_PATH"%s.bin", titleid);
 
 	if (WriteFile(config_path, &current_config, sizeof(current_config)) < 0)
 		return SAVE_ERROR;
@@ -485,11 +477,11 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 						case 0: {
 							switch (pos) {
 								case 0: {
-									error_code = save_config();
+									error_code = save_config(0);
 								}
 									break;
 								case 1: {
-									error_code = save_default_config();
+									error_code = save_config(1);
 								}
 									break;
 								case 2: {
