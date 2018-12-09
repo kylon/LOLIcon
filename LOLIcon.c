@@ -293,282 +293,228 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 				error_code = showMenu = 0;
 
 			if (showMenu && ksceKernelGetProcessId() == shell_pid) {
+				int menuOpt = (page*10)+pos; // page-pos
+
 				if (buttons & SCE_CTRL_LEFT) {
-					switch (page) {
-						case 1: {
-							switch (pos) {
-								case 0: {
-									if (!current_config.autoMode && current_config.mode > 0) {
-										ctrl_timestamp = ctrl->timeStamp;
-										--current_config.mode;
-										refreshClocks();
-									}
-								}
-									break;
-								default:
-									break;
+					switch (menuOpt) {
+						case 10: { // 1-0
+							if (!current_config.autoMode && current_config.mode > 0) {
+								ctrl_timestamp = ctrl->timeStamp;
+								--current_config.mode;
+								refreshClocks();
 							}
 						}
 							break;
-						case 3: {
-							switch (pos) {
-								case 1: {
-									if ((btn1Idx-1) >= 0) {
-										--btn1Idx;
+						case 31: { // 3-1
+							if ((btn1Idx-1) >= 0) {
+								--btn1Idx;
 
-										current_config.sbtn1 = validBtn[btn1Idx];
-										if (!isValidCustomBtnCombo()) {
-											btn1Idx = (btn1Idx-1) >= 0 ? btn1Idx-1:btn1Idx+1;
-											current_config.sbtn1 = validBtn[btn1Idx];
-										}
-
-										getCustomButtonsLabel();
-									}
+								current_config.sbtn1 = validBtn[btn1Idx];
+								if (!isValidCustomBtnCombo()) {
+									btn1Idx = (btn1Idx-1) >= 0 ? btn1Idx-1:btn1Idx+1;
+									current_config.sbtn1 = validBtn[btn1Idx];
 								}
-									break;
-								case 2: {
-									if ((btn2Idx-1) >= 0) {
-										--btn2Idx;
 
-										current_config.sbtn2 = validBtn[btn2Idx];
-										if (!isValidCustomBtnCombo()) {
-											btn2Idx = (btn2Idx-1) >= 0 ? btn2Idx-1:btn2Idx+1;
-											current_config.sbtn2 = validBtn[btn2Idx];
-										}
-
-										getCustomButtonsLabel();
-									}
-								}
-									break;
-								case 3: {
-									if ((btn3Idx-1) >= 0) {
-										--btn3Idx;
-
-										current_config.cbtn1 = validBtn[btn3Idx];
-										if (!isValidCustomBtnCombo()) {
-											btn3Idx = (btn3Idx-1) >= 0 ? btn3Idx-1:btn3Idx+1;
-											current_config.cbtn1 = validBtn[btn3Idx];
-										}
-
-										getCustomButtonsLabel();
-									}
-								}
-									break;
-								case 4: {
-									if ((btn4Idx-1) >= 0) {
-										--btn4Idx;
-
-										current_config.cbtn2 = validBtn[btn4Idx];
-										if (!isValidCustomBtnCombo()) {
-											btn4Idx = (btn4Idx-1) >= 0 ? btn4Idx-1:btn4Idx+1;
-											current_config.cbtn2 = validBtn[btn4Idx];
-										}
-
-										getCustomButtonsLabel();
-									}
-								}
-									break;
-								default:
-									break;
+								getCustomButtonsLabel();
 							}
+						}
+							break;
+						case 32: { // 3-2
+							if ((btn2Idx-1) >= 0) {
+								--btn2Idx;
 
-							ctrl_timestamp = ctrl->timeStamp;
+								current_config.sbtn2 = validBtn[btn2Idx];
+								if (!isValidCustomBtnCombo()) {
+									btn2Idx = (btn2Idx-1) >= 0 ? btn2Idx-1:btn2Idx+1;
+									current_config.sbtn2 = validBtn[btn2Idx];
+								}
+
+								getCustomButtonsLabel();
+							}
+						}
+							break;
+						case 33: { // 3-3
+							if ((btn3Idx-1) >= 0) {
+								--btn3Idx;
+
+								current_config.cbtn1 = validBtn[btn3Idx];
+								if (!isValidCustomBtnCombo()) {
+									btn3Idx = (btn3Idx-1) >= 0 ? btn3Idx-1:btn3Idx+1;
+									current_config.cbtn1 = validBtn[btn3Idx];
+								}
+
+								getCustomButtonsLabel();
+							}
+						}
+							break;
+						case 34: { // 3-4
+							if ((btn4Idx-1) >= 0) {
+								--btn4Idx;
+
+								current_config.cbtn2 = validBtn[btn4Idx];
+								if (!isValidCustomBtnCombo()) {
+									btn4Idx = (btn4Idx-1) >= 0 ? btn4Idx-1:btn4Idx+1;
+									current_config.cbtn2 = validBtn[btn4Idx];
+								}
+
+								getCustomButtonsLabel();
+							}
 						}
 							break;
 						default:
 							break;
 					}
+
+					ctrl_timestamp = ctrl->timeStamp;
 
 				} else if (buttons & SCE_CTRL_RIGHT) {
-					switch (page) {
-						case 1: {
-							switch (pos) {
-								case 0: {
-									if (!current_config.autoMode && current_config.mode < 4) {
-										ctrl_timestamp = ctrl->timeStamp;
-										++current_config.mode;
-										refreshClocks();
-									}
-								}
-									break;
-								default:
-									break;
+					switch (menuOpt) {
+						case 10: { // 1-0
+							if (!current_config.autoMode && current_config.mode < 4) {
+								ctrl_timestamp = ctrl->timeStamp;
+								++current_config.mode;
+								refreshClocks();
 							}
 						}
 							break;
-						case 3: {
-							switch (pos) {
-								case 1: {
-									if ((btn1Idx+1) < CUSTOM_BTNS_NUM) {
-										++btn1Idx;
+						case 31: { // 3-1
+							if ((btn1Idx+1) < CUSTOM_BTNS_NUM) {
+								++btn1Idx;
 
-										current_config.sbtn1 = validBtn[btn1Idx];
-										if (!isValidCustomBtnCombo()) {
-											btn1Idx = (btn1Idx+1) < CUSTOM_BTNS_NUM ? btn1Idx+1:btn1Idx-1;
-											current_config.sbtn1 = validBtn[btn1Idx];
-										}
-
-										getCustomButtonsLabel();
-									}
+								current_config.sbtn1 = validBtn[btn1Idx];
+								if (!isValidCustomBtnCombo()) {
+									btn1Idx = (btn1Idx+1) < CUSTOM_BTNS_NUM ? btn1Idx+1:btn1Idx-1;
+									current_config.sbtn1 = validBtn[btn1Idx];
 								}
-									break;
-								case 2: {
-									if ((btn2Idx+1) < CUSTOM_BTNS_NUM) {
-										++btn2Idx;
 
-										current_config.sbtn2 = validBtn[btn2Idx];
-										if (!isValidCustomBtnCombo()) {
-											btn2Idx = (btn2Idx+1) < CUSTOM_BTNS_NUM ? btn2Idx+1:btn2Idx-1;
-											current_config.sbtn2 = validBtn[btn2Idx];
-										}
-
-										getCustomButtonsLabel();
-									}
-								}
-									break;
-								case 3: {
-									if ((btn3Idx+1) < CUSTOM_BTNS_NUM) {
-										++btn3Idx;
-
-										current_config.cbtn1 = validBtn[btn3Idx];
-										if (!isValidCustomBtnCombo()) {
-											btn3Idx = (btn3Idx+1) < CUSTOM_BTNS_NUM ? btn3Idx+1:btn3Idx-1;
-											current_config.cbtn1 = validBtn[btn3Idx];
-										}
-
-										getCustomButtonsLabel();
-									}
-								}
-									break;
-								case 4: {
-									if ((btn4Idx+1) < CUSTOM_BTNS_NUM) {
-										++btn4Idx;
-
-										current_config.cbtn2 = validBtn[btn4Idx];
-										if (!isValidCustomBtnCombo()) {
-											btn4Idx = (btn4Idx+1) < CUSTOM_BTNS_NUM ? btn4Idx+1:btn4Idx-1;
-											current_config.cbtn2 = validBtn[btn4Idx];
-										}
-
-										getCustomButtonsLabel();
-									}
-								}
-									break;
-								default:
-									break;
+								getCustomButtonsLabel();
 							}
+						}
+							break;
+						case 32: { // 3-2
+							if ((btn2Idx+1) < CUSTOM_BTNS_NUM) {
+								++btn2Idx;
 
-							ctrl_timestamp = ctrl->timeStamp;
+								current_config.sbtn2 = validBtn[btn2Idx];
+								if (!isValidCustomBtnCombo()) {
+									btn2Idx = (btn2Idx+1) < CUSTOM_BTNS_NUM ? btn2Idx+1:btn2Idx-1;
+									current_config.sbtn2 = validBtn[btn2Idx];
+								}
+
+								getCustomButtonsLabel();
+							}
+						}
+							break;
+						case 33: { // 3-3
+							if ((btn3Idx+1) < CUSTOM_BTNS_NUM) {
+								++btn3Idx;
+
+								current_config.cbtn1 = validBtn[btn3Idx];
+								if (!isValidCustomBtnCombo()) {
+									btn3Idx = (btn3Idx+1) < CUSTOM_BTNS_NUM ? btn3Idx+1:btn3Idx-1;
+									current_config.cbtn1 = validBtn[btn3Idx];
+								}
+
+								getCustomButtonsLabel();
+							}
+						}
+							break;
+						case 34: { // 3-4
+							if ((btn4Idx+1) < CUSTOM_BTNS_NUM) {
+								++btn4Idx;
+
+								current_config.cbtn2 = validBtn[btn4Idx];
+								if (!isValidCustomBtnCombo()) {
+									btn4Idx = (btn4Idx+1) < CUSTOM_BTNS_NUM ? btn4Idx+1:btn4Idx-1;
+									current_config.cbtn2 = validBtn[btn4Idx];
+								}
+
+								getCustomButtonsLabel();
+							}
 						}
 							break;
 						default:
 							break;
 					}
+
+					ctrl_timestamp = ctrl->timeStamp;
 
 				} else if ((buttons & SCE_CTRL_UP) && pos > 0) {
 					ctrl_timestamp = ctrl->timeStamp;
 					--pos;
 
+				} else if (buttons & SCE_CTRL_DOWN) {
+					ctrl_timestamp = ctrl->timeStamp;
+					++pos;
+
 				} else if (buttons & SCE_CTRL_CIRCLE) {
 					page = pos = 0;
 
 				} else if (buttons & SCE_CTRL_CROSS) {
-					switch (page) {
-						case 0: {
-							switch (pos) {
-								case 0: {
-									error_code = save_config(0);
-								}
-									break;
-								case 1: {
-									error_code = save_config(1);
-								}
-									break;
-								case 2: {
-									reset_config();
-									refreshClocks();
-								}
-									break;
-								case 3: {
-									page = 1;
-									pos = 0;
-								}
-									break;
-								case 4: {
-									page = 2;
-									pos = 0;
-								}
-									break;
-								case 5: {
-									getCustomButtonsLabel();
+					switch (menuOpt) {
+						case 0: { // 0-0
+							error_code = save_config(0);
+						}
+							break;
+						case 1: { // 0-1
+							error_code = save_config(1);
+						}
+							break;
+						case 2: { // 0-2
+							reset_config();
+							refreshClocks();
+						}
+							break;
+						case 3: { // 0-3
+							page = 1;
+							pos = 0;
+						}
+							break;
+						case 4: { // 0-4
+							page = 2;
+							pos = 0;
+						}
+							break;
+						case 5: { // 0-5
+							getCustomButtonsLabel();
 
-									page = 3;
-									pos = 0;
-								}
-									break;
-								case 6: {
-									kscePowerRequestColdReset();
-								}
-									break;
-								case 7: {
-									kscePowerRequestStandby();
-								}
-									break;
-								default:
-									break;
-							}
+							page = 3;
+							pos = 0;
 						}
 							break;
-						case 1: {
-							switch (pos) {
-								case 1: {
-									current_config.autoMode = !current_config.autoMode;
-									aModePowSaveTry = 2;
-								}
-									break;
-								default:
-									break;
-							}
+						case 6: { // 0-6
+							kscePowerRequestColdReset();
 						}
 							break;
-						case 2: {
-							switch (pos) {
-								case 0: {
-									current_config.showFPS = !current_config.showFPS;
-								}
-									break;
-								case 1: {
-									current_config.showBat = !current_config.showBat;
-								}
-									break;
-								case 2: {
-									current_config.hideErrors = !current_config.hideErrors;
-								}
-									break;
-								default:
-									break;
-							}
+						case 7: { // 0-7
+							kscePowerRequestStandby();
 						}
 							break;
-						case 3: {
-							switch (pos) {
-								case 0: {
-									current_config.buttonSwap = !current_config.buttonSwap;
-								}
-									break;
-								default:
-									break;
-							}
+						case 11: { // 1-1
+							current_config.autoMode = !current_config.autoMode;
+							aModePowSaveTry = 2;
+						}
+							break;
+						case 20: { // 2-0
+							current_config.showFPS = !current_config.showFPS;
+						}
+							break;
+						case 21: { // 2-1
+							current_config.showBat = !current_config.showBat;
+						}
+							break;
+						case 22: { // 2-2
+							current_config.hideErrors = !current_config.hideErrors;
+						}
+							break;
+						case 30: { // 3-0
+							current_config.buttonSwap = !current_config.buttonSwap;
 						}
 							break;
 						default:
 							break;
 					}
 
-					ctrl_timestamp = ctrl->timeStamp;
-
-				} else if (buttons & SCE_CTRL_DOWN) {
-					++pos;
 					ctrl_timestamp = ctrl->timeStamp;
 				}
 			}
@@ -661,14 +607,13 @@ void drawMenu() {
 			MENU_OPTION_F("Show Battery %d",current_config.showBat);
 			MENU_OPTION_F("Hide Errors %d",current_config.hideErrors);
 			break;
-		case 3: {
+		case 3:
 			blit_stringf(LEFT_LABEL_X, 88, "CONTROL");
 			MENU_OPTION_F("Swap X/O Buttons %d", current_config.buttonSwap);
 			MENU_OPTION_F("Show Menu Btn 1 %s", show1);
 			MENU_OPTION_F("Show Menu Btn 2 %s", show2);
 			MENU_OPTION_F("Close Menu Btn 1 %s", cls1);
 			MENU_OPTION_F("Close Menu Btn 2 %s", cls2);
-		}
 			break;
 		default:
 			break;
@@ -826,10 +771,9 @@ int SceProcEventForDriver_414CC813(int pid, int id, int r3, int r4, int r5, int 
 
 	} else if ((id == 0x4 || id == 0x3) && (current_pid == pid || isPspEmu)) {
 		curTime = fps_count = lateTime = lateTimeAMode = 0;
-		lateTimeAModeR = maxFps = lateTimeMsg = 0;
+		lateTimeAModeR = maxFps = lateTimeMsg = isPspEmu = 0;
 		isShell = 1;
 		strncpy(titleid, "main", sizeof("main"));
-		isPspEmu = 0;
 		load_and_refresh();
 	}
 
