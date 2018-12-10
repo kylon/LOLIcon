@@ -481,7 +481,8 @@ void drawMenu() {
 
 	switch (page) {
 		case 0:
-			blit_stringf(LEFT_LABEL_X, 88, "LOLIcon by @dots_tb");
+			blit_stringf(LEFT_LABEL_X, 72, "LOLIcon by @dots_tb");
+			blit_stringf(LEFT_LABEL_X, 88, "Version X.x by kylon");
 			MENU_OPTION_F("Save for %s", titleid);
 			MENU_OPTION("Save as Default");
 			MENU_OPTION("Clear settings");
