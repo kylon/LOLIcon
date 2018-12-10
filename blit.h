@@ -6,6 +6,10 @@
 #define COLOR_CYAN    0x00ffff00
 #define COLOR_MAGENDA 0x00ff00ff
 #define COLOR_YELLOW  0x0000ffff
+#define COLOR_WHITE   0x00FFFFFF
+#define COLOR_BLUE    0x00FF0000
+#define COLOR_GREEN   0x0000FF00
+#define COLOR_BLACK   0x00000000
 
 #define RGB(R,G,B)    (((B)<<16)|((G)<<8)|(R))
 #define RGBT(R,G,B,T) (((T)<<24)|((B)<<16)|((G)<<8)|(R))

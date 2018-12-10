@@ -32,6 +32,9 @@ typedef struct titleid_config {
 	int showBat;
 	int buttonSwap;
 	int showFPS;
+	int showCpu;
+	int showGpu;
+	uint32_t osdColor;
 	SceCtrlButtons btn1;
 	SceCtrlButtons btn2;
 } titleid_config;
@@ -49,12 +52,16 @@ unsigned aModeTimer = TIMER_AMODE;
 int showMenu = 0, pos = 0, isReseting = 0, forceReset = 0, isPspEmu = 0, isShell = 1;
 int page = 0, aModePowSaveTry = 2, aModeLastFps = 50, maxFps = 0, fps;
 long curTime = 0, lateTime = 0, lateTimeAMode = 0, lateTimeAModeR = 0, lateTimeMsg = 0, fps_count = 0;
-static char btn1[10], btn2[10];
-int btn1Idx = 0, btn2Idx = 0;
+static char btn1[10], btn2[10], osdColorLbl[10];
+int btn1Idx = 0, btn2Idx = 0, osdColorIdx = 0;
 SceCtrlButtons validBtn[] = {
 	SCE_CTRL_SELECT, SCE_CTRL_START, SCE_CTRL_UP, SCE_CTRL_DOWN, SCE_CTRL_LEFT, SCE_CTRL_RIGHT,
 	SCE_CTRL_CROSS, SCE_CTRL_CIRCLE, SCE_CTRL_SQUARE, SCE_CTRL_TRIANGLE, SCE_CTRL_VOLUP,
 	SCE_CTRL_VOLDOWN
+};
+uint32_t osdColorList[] = {
+	COLOR_CYAN, COLOR_MAGENDA, COLOR_YELLOW, COLOR_WHITE, COLOR_BLUE, COLOR_GREEN,
+	COLOR_BLACK
 };
 
 unsigned int *clock_r1, *clock_r2;
@@ -77,7 +84,7 @@ void getCustomButtonsLabel() {
 	};
 
 	for (int i=0, t=0; i<CUSTOM_BTNS_NUM; ++i) {
-		if (t == 4)
+		if (t == 2)
 			break;
 
 		if (current_config.btn1 == validBtn[i]) {
@@ -95,6 +102,23 @@ void getCustomButtonsLabel() {
 	return;
 }
 
+void getOSDColorLabel() {
+	const char *colors[OSD_COLOR_NUM] = {
+		"Cyano", "Magenta", "Yellow", "White", "Blue",
+		"Green", "Black"
+	};
+
+	for (int i=0; i<OSD_COLOR_NUM; ++i) {
+		if (current_config.osdColor == osdColorList[i]) {
+			snprintf(osdColorLbl, sizeof(osdColorLbl), "%s", colors[i]);
+			osdColorIdx = i;
+			break;
+		}
+	}
+
+	return;
+}
+
 int isValidCustomBtnCombo() {
 	return (current_config.btn1 != current_config.btn2);
 }
@@ -102,6 +126,7 @@ int isValidCustomBtnCombo() {
 void reset_config() {
 	memset(&current_config, 0, sizeof(current_config));
 	current_config.mode = 2;
+	current_config.osdColor = COLOR_CYAN;
 	current_config.btn1 = SCE_CTRL_SELECT;
 	current_config.btn2 = SCE_CTRL_UP;
 }
@@ -182,10 +207,10 @@ void adjustClock() {
 
 		lateTimeAMode = curTime;
 		fpsDiff = abs(fps-aModeLastFps);
+		aModeTimer = TIMER_AMODE;
 
 		if ((fpsDiff > 6 || fps < maxFps) && current_config.mode < 4) {
 			--aModePowSaveTry;
-			aModeTimer = TIMER_AMODE;
 			++current_config.mode;
 			refreshClocks();
 
@@ -287,9 +312,17 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 					switch (menuOpt) {
 						case 10: { // 1-0
 							if (!current_config.autoMode && current_config.mode > 0) {
-								ctrl_timestamp = ctrl->timeStamp;
 								--current_config.mode;
 								refreshClocks();
+							}
+						}
+							break;
+						case 25: { // 2-5
+							if ((osdColorIdx-1) >= 0) {
+								--osdColorIdx;
+
+								current_config.osdColor = osdColorList[osdColorIdx];
+								getOSDColorLabel();
 							}
 						}
 							break;
@@ -331,9 +364,17 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 					switch (menuOpt) {
 						case 10: { // 1-0
 							if (!current_config.autoMode && current_config.mode < 4) {
-								ctrl_timestamp = ctrl->timeStamp;
 								++current_config.mode;
 								refreshClocks();
+							}
+						}
+							break;
+						case 25: { // 2-5
+							if ((osdColorIdx+1) < OSD_COLOR_NUM) {
+								++osdColorIdx;
+
+								current_config.osdColor = osdColorList[osdColorIdx];
+								getOSDColorLabel();
 							}
 						}
 							break;
@@ -403,6 +444,8 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 						}
 							break;
 						case 4: { // 0-4
+							getOSDColorLabel();
+
 							page = 2;
 							pos = 0;
 						}
@@ -436,6 +479,14 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 						}
 							break;
 						case 22: { // 2-2
+							current_config.showCpu = !current_config.showCpu;
+						}
+							break;
+						case 23: { // 2-3
+							current_config.showGpu = !current_config.showGpu;
+						}
+							break;
+						case 24: { // 2-4
 							current_config.hideErrors = !current_config.hideErrors;
 						}
 							break;
@@ -477,7 +528,7 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 void drawMenu() {
 	int entries = 0;
 
-	blit_set_color(0x00FFFFFF, 0x00FF0000);
+	blit_set_color(COLOR_WHITE, COLOR_BLUE);
 
 	switch (page) {
 		case 0:
@@ -538,7 +589,10 @@ void drawMenu() {
 			blit_stringf(LEFT_LABEL_X, 88, "OSD");
 			MENU_OPTION_F("Show FPS %d",current_config.showFPS);
 			MENU_OPTION_F("Show Battery %d",current_config.showBat);
+			MENU_OPTION_F("Show CPU Freq %d",current_config.showCpu);
+			MENU_OPTION_F("Show GPU Freq %d",current_config.showGpu);
 			MENU_OPTION_F("Hide Errors %d",current_config.hideErrors);
+			MENU_OPTION_F("Text Color %s",osdColorLbl);
 			break;
 		case 3:
 			blit_stringf(LEFT_LABEL_X, 88, "CONTROL");
@@ -576,7 +630,7 @@ int getFindModNameFromPID(int pid, char *mod_name, int size) {
 }
 
 int _sceDisplaySetFrameBufInternalForDriver(int fb_id1, int fb_id2, const SceDisplayFrameBuf *pParam, int sync) {
-	int battPosX = 35;
+	int textY = 10;
 
 	if (isPspEmu || !fb_id1 || !pParam)
 		return TAI_CONTINUE(int, ref_hooks[0], fb_id1, fb_id2, pParam, sync);
@@ -598,7 +652,7 @@ int _sceDisplaySetFrameBufInternalForDriver(int fb_id1, int fb_id2, const SceDis
 	if (showMenu)
 		drawMenu();
 
-	blit_set_color(0x0000FF00, 0xff000000);
+	blit_set_color(current_config.osdColor, 0xff000000);
 	if ((isShell && shell_pid == ksceKernelGetProcessId()) || (!isShell && current_pid == ksceKernelGetProcessId())) {
 		curTime = ksceKernelGetProcessTimeWideCore();
 
@@ -608,15 +662,25 @@ int _sceDisplaySetFrameBufInternalForDriver(int fb_id1, int fb_id2, const SceDis
 			doFps();
 
 		if (current_config.showFPS) {
-			battPosX = 65;
-			blit_stringf(15, 40, "%d", fps);
+			blit_stringf(10, 520, "FPS:%d", fps);
+			textY += 105;
 		}
 
 		if (current_config.autoMode)
 			adjustClock();
 
-		if (current_config.showBat)
-			blit_stringf(15, battPosX, "%02d\%", kscePowerGetBatteryLifePercent());
+		if (current_config.showBat) {
+			blit_stringf(textY, 520, "Batt:%02d\%", kscePowerGetBatteryLifePercent());
+			textY += 140;
+		}
+
+		if (current_config.showCpu) {
+			blit_stringf(textY, 520, "CPU:%-4d", kscePowerGetArmClockFrequency());
+			textY += 120;
+		}
+
+		if (current_config.showGpu)
+			blit_stringf(textY, 520, "GPU:%-4d", kscePowerGetGpuClockFrequency());
 	}
 
 	return TAI_CONTINUE(int, ref_hooks[0], fb_id1, fb_id2, pParam, sync);

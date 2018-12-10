@@ -7,6 +7,7 @@
 #define TIMER_AMODE 	15000000 // 15 seconds
 #define TIMER_AMODE_R	30000000 // 30 seconds
 #define CUSTOM_BTNS_NUM	12
+#define OSD_COLOR_NUM   7
 #define HOOKS_NUM		14
 
 #define NO_ERROR	0
