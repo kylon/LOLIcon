@@ -32,10 +32,8 @@ typedef struct titleid_config {
 	int showBat;
 	int buttonSwap;
 	int showFPS;
-	SceCtrlButtons sbtn1;
-	SceCtrlButtons sbtn2;
-	SceCtrlButtons cbtn1;
-	SceCtrlButtons cbtn2;
+	SceCtrlButtons btn1;
+	SceCtrlButtons btn2;
 } titleid_config;
 
 static char config_path[PATH_MAX];
@@ -45,13 +43,14 @@ static char titleid[32];
 uint32_t current_pid = 0, shell_pid = 0;
 
 static uint64_t ctrl_timestamp;
+static uint64_t menu_timestamp;
 int error_code = NO_ERROR;
 unsigned aModeTimer = TIMER_AMODE;
 int showMenu = 0, pos = 0, isReseting = 0, forceReset = 0, isPspEmu = 0, isShell = 1;
 int page = 0, aModePowSaveTry = 2, aModeLastFps = 50, maxFps = 0, fps;
 long curTime = 0, lateTime = 0, lateTimeAMode = 0, lateTimeAModeR = 0, lateTimeMsg = 0, fps_count = 0;
-static char show1[10], show2[10], cls1[10], cls2[10];
-int btn1Idx = 0, btn2Idx = 0, btn3Idx = 0, btn4Idx = 0;
+static char btn1[10], btn2[10];
+int btn1Idx = 0, btn2Idx = 0;
 SceCtrlButtons validBtn[] = {
 	SCE_CTRL_SELECT, SCE_CTRL_START, SCE_CTRL_UP, SCE_CTRL_DOWN, SCE_CTRL_LEFT, SCE_CTRL_RIGHT,
 	SCE_CTRL_CROSS, SCE_CTRL_CIRCLE, SCE_CTRL_SQUARE, SCE_CTRL_TRIANGLE, SCE_CTRL_VOLUP,
@@ -81,25 +80,14 @@ void getCustomButtonsLabel() {
 		if (t == 4)
 			break;
 
-		if (current_config.sbtn1 == validBtn[i]) {
-			snprintf(show1, sizeof(show1), "%s", validBtnL[i]);
+		if (current_config.btn1 == validBtn[i]) {
+			snprintf(btn1, sizeof(btn1), "%s", validBtnL[i]);
 			btn1Idx = i;
 			++t;
 
-		} else if (current_config.sbtn2 == validBtn[i]) {
-			snprintf(show2, sizeof(show2), "%s", validBtnL[i]);
+		} else if (current_config.btn2 == validBtn[i]) {
+			snprintf(btn2, sizeof(btn2), "%s", validBtnL[i]);
 			btn2Idx = i;
-			++t;
-		}
-
-		if (current_config.cbtn1 == validBtn[i]) {
-			snprintf(cls1, sizeof(cls1), "%s", validBtnL[i]);
-			btn3Idx = i;
-			++t;
-
-		} else if (current_config.cbtn2 == validBtn[i]) {
-			snprintf(cls2, sizeof(cls2), "%s", validBtnL[i]);
-			btn4Idx = i;
 			++t;
 		}
 	}
@@ -108,18 +96,14 @@ void getCustomButtonsLabel() {
 }
 
 int isValidCustomBtnCombo() {
-	return !((current_config.sbtn1 == current_config.cbtn1 && current_config.sbtn2 == current_config.cbtn2) ||
-			(current_config.sbtn1 == current_config.cbtn2 && current_config.sbtn2 == current_config.cbtn1) ||
-			(current_config.sbtn1 == current_config.sbtn2) || (current_config.cbtn1 == current_config.cbtn2));
+	return (current_config.btn1 != current_config.btn2);
 }
 
 void reset_config() {
 	memset(&current_config, 0, sizeof(current_config));
 	current_config.mode = 2;
-	current_config.sbtn1 = SCE_CTRL_SELECT;
-	current_config.sbtn2 = SCE_CTRL_UP;
-	current_config.cbtn1 = SCE_CTRL_SELECT;
-	current_config.cbtn2 = SCE_CTRL_DOWN;
+	current_config.btn1 = SCE_CTRL_SELECT;
+	current_config.btn2 = SCE_CTRL_UP;
 }
 
 int load_config() {
@@ -277,21 +261,25 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 		return ret;
 
 	if (!showMenu) {
-		if ((ctrl->buttons & current_config.sbtn1) && (ctrl->buttons & current_config.sbtn2))
+		if ((ctrl->timeStamp > menu_timestamp + 400*1000) && (ctrl->buttons & current_config.btn1) && (ctrl->buttons & current_config.btn2)) {
+			menu_timestamp = ctrl->timeStamp;
 			ctrl_timestamp = showMenu = 1;
+		}
 
 		if (current_config.buttonSwap && (ctrl->buttons & 0x6000) && (ctrl->buttons & 0x6000) != 0x6000 &&
 				((isShell && shell_pid == ksceKernelGetProcessId()) || (!isShell && current_pid == ksceKernelGetProcessId())))
 			ctrl->buttons = ctrl->buttons ^ 0x6000;
 
 	} else {
-		unsigned int buttons = ctrl->buttons;
+		unsigned buttons = ctrl->buttons;
 		ctrl->buttons = 0;
 
-		if (ctrl->timeStamp > ctrl_timestamp + 300*1000) {
-			if ((buttons & current_config.cbtn1) && (buttons & current_config.cbtn2))
-				error_code = showMenu = 0;
+		if ((ctrl->timeStamp > menu_timestamp + 400*1000) && (buttons & current_config.btn1) && (buttons & current_config.btn2)) {
+			menu_timestamp = ctrl->timeStamp;
+			error_code = showMenu = 0;
+		}
 
+		if (ctrl->timeStamp > ctrl_timestamp + 200*1000) {
 			if (showMenu && ksceKernelGetProcessId() == shell_pid) {
 				int menuOpt = (page*10)+pos; // page-pos
 
@@ -309,10 +297,10 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 							if ((btn1Idx-1) >= 0) {
 								--btn1Idx;
 
-								current_config.sbtn1 = validBtn[btn1Idx];
+								current_config.btn1 = validBtn[btn1Idx];
 								if (!isValidCustomBtnCombo()) {
 									btn1Idx = (btn1Idx-1) >= 0 ? btn1Idx-1:btn1Idx+1;
-									current_config.sbtn1 = validBtn[btn1Idx];
+									current_config.btn1 = validBtn[btn1Idx];
 								}
 
 								getCustomButtonsLabel();
@@ -323,38 +311,10 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 							if ((btn2Idx-1) >= 0) {
 								--btn2Idx;
 
-								current_config.sbtn2 = validBtn[btn2Idx];
+								current_config.btn2 = validBtn[btn2Idx];
 								if (!isValidCustomBtnCombo()) {
 									btn2Idx = (btn2Idx-1) >= 0 ? btn2Idx-1:btn2Idx+1;
-									current_config.sbtn2 = validBtn[btn2Idx];
-								}
-
-								getCustomButtonsLabel();
-							}
-						}
-							break;
-						case 33: { // 3-3
-							if ((btn3Idx-1) >= 0) {
-								--btn3Idx;
-
-								current_config.cbtn1 = validBtn[btn3Idx];
-								if (!isValidCustomBtnCombo()) {
-									btn3Idx = (btn3Idx-1) >= 0 ? btn3Idx-1:btn3Idx+1;
-									current_config.cbtn1 = validBtn[btn3Idx];
-								}
-
-								getCustomButtonsLabel();
-							}
-						}
-							break;
-						case 34: { // 3-4
-							if ((btn4Idx-1) >= 0) {
-								--btn4Idx;
-
-								current_config.cbtn2 = validBtn[btn4Idx];
-								if (!isValidCustomBtnCombo()) {
-									btn4Idx = (btn4Idx-1) >= 0 ? btn4Idx-1:btn4Idx+1;
-									current_config.cbtn2 = validBtn[btn4Idx];
+									current_config.btn2 = validBtn[btn2Idx];
 								}
 
 								getCustomButtonsLabel();
@@ -381,10 +341,10 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 							if ((btn1Idx+1) < CUSTOM_BTNS_NUM) {
 								++btn1Idx;
 
-								current_config.sbtn1 = validBtn[btn1Idx];
+								current_config.btn1 = validBtn[btn1Idx];
 								if (!isValidCustomBtnCombo()) {
 									btn1Idx = (btn1Idx+1) < CUSTOM_BTNS_NUM ? btn1Idx+1:btn1Idx-1;
-									current_config.sbtn1 = validBtn[btn1Idx];
+									current_config.btn1 = validBtn[btn1Idx];
 								}
 
 								getCustomButtonsLabel();
@@ -395,38 +355,10 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 							if ((btn2Idx+1) < CUSTOM_BTNS_NUM) {
 								++btn2Idx;
 
-								current_config.sbtn2 = validBtn[btn2Idx];
+								current_config.btn2 = validBtn[btn2Idx];
 								if (!isValidCustomBtnCombo()) {
 									btn2Idx = (btn2Idx+1) < CUSTOM_BTNS_NUM ? btn2Idx+1:btn2Idx-1;
-									current_config.sbtn2 = validBtn[btn2Idx];
-								}
-
-								getCustomButtonsLabel();
-							}
-						}
-							break;
-						case 33: { // 3-3
-							if ((btn3Idx+1) < CUSTOM_BTNS_NUM) {
-								++btn3Idx;
-
-								current_config.cbtn1 = validBtn[btn3Idx];
-								if (!isValidCustomBtnCombo()) {
-									btn3Idx = (btn3Idx+1) < CUSTOM_BTNS_NUM ? btn3Idx+1:btn3Idx-1;
-									current_config.cbtn1 = validBtn[btn3Idx];
-								}
-
-								getCustomButtonsLabel();
-							}
-						}
-							break;
-						case 34: { // 3-4
-							if ((btn4Idx+1) < CUSTOM_BTNS_NUM) {
-								++btn4Idx;
-
-								current_config.cbtn2 = validBtn[btn4Idx];
-								if (!isValidCustomBtnCombo()) {
-									btn4Idx = (btn4Idx+1) < CUSTOM_BTNS_NUM ? btn4Idx+1:btn4Idx-1;
-									current_config.cbtn2 = validBtn[btn4Idx];
+									current_config.btn2 = validBtn[btn2Idx];
 								}
 
 								getCustomButtonsLabel();
@@ -610,10 +542,8 @@ void drawMenu() {
 		case 3:
 			blit_stringf(LEFT_LABEL_X, 88, "CONTROL");
 			MENU_OPTION_F("Swap X/O Buttons %d", current_config.buttonSwap);
-			MENU_OPTION_F("Show Menu Btn 1 %s", show1);
-			MENU_OPTION_F("Show Menu Btn 2 %s", show2);
-			MENU_OPTION_F("Close Menu Btn 1 %s", cls1);
-			MENU_OPTION_F("Close Menu Btn 2 %s", cls2);
+			MENU_OPTION_F("Menu Button 1 %s", btn1);
+			MENU_OPTION_F("Menu Button 2 %s", btn2);
 			break;
 		default:
 			break;
@@ -820,10 +750,8 @@ int module_start(SceSize argc, const void *args) {
 	memset(&titleid, 0, sizeof(titleid));
 	strncpy(titleid, "main", sizeof(titleid));
 
-	memset(&show1, 0, sizeof(show1));
-	memset(&show2, 0, sizeof(show2));
-	memset(&cls1, 0, sizeof(cls1));
-	memset(&cls2, 0, sizeof(cls2));
+	memset(&btn1, 0, sizeof(btn1));
+	memset(&btn2, 0, sizeof(btn2));
 
 	reset_config();
 	refreshClocks();
