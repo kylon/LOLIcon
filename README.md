@@ -3,6 +3,9 @@
 
 by @dots_tb
 
+This is a fork of LOLIcon!
+See my repo for a full list of changes.
+
 A  small onscreen console that runs from the kernel level. So it probably won't crash games as many certain user plugins do. It also removes dependency of kuio.
 
 (Also some advice FOR DEVS, use ioPlus which allows you to use normal sceIo functions in user plugins <https://github.com/CelesteBlue-dev/PSVita-RE-tools/tree/master/ioPlus/ioPlus-0.1>).
@@ -40,7 +43,7 @@ Put "lolicon.skprx" in 'tai' folder in the root of your Vita. (Or just use autop
 ur0:tai/lolicon.skprx
 ```
 
-After that just reboot and press SELECT + UP to enable menu. Press SELECT + DOWN to close menu.
+After that just reboot and press SELECT + UP to enable/close menu.
 
 Thanks to: 
 
