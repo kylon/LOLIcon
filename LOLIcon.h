@@ -1,5 +1,5 @@
-#define LEFT_LABEL_X CENTER(24)
-#define RIGHT_LABEL_X CENTER(0)
+#define LEFT_LABEL_X blit_string_center_x(20)
+#define RIGHT_LABEL_X blit_string_center_x(0)
 #define printf ksceDebugPrintf
 
 #define CONFIG_PATH		"ur0:LOLIcon/"
@@ -16,21 +16,13 @@
 #define LOAD_ERROR	3
 #define LOAD_GOOD	4
 
-#define MENU_OPTION_F(TEXT,...)\
-	blit_set_color(0x00FFFFFF, (pos != entries) ? 0x00FF0000 : 0x0000FF00);\
-	blit_stringf(LEFT_LABEL_X, 120+16*entries++, (TEXT), __VA_ARGS__);
+#define MENU_OPTION_F(POSY, FONTH, TEXT, ...)\
+	blit_set_color(COLOR_WHITE, (pos != entries) ? COLOR_BLUE:COLOR_GREEN);\
+	blit_stringf(LEFT_LABEL_X, POSY+FONTH*entries++, (TEXT), __VA_ARGS__);
 
-#define MENU_OPTION_FC(POS,TEXT,...)\
-	blit_set_color(0x00FFFFFF, (pos != entries) ? 0x00FF0000 : 0x0000FF00);\
-	blit_stringf(LEFT_LABEL_X, POS+16*entries++, (TEXT), __VA_ARGS__);
-
-#define MENU_OPTION(TEXT,...)\
-	blit_set_color(0x00FFFFFF, (pos != entries) ? 0x00FF0000 : 0x0000FF00);\
-	blit_stringf(LEFT_LABEL_X, 120+16*entries++, (TEXT));
-
-#define MENU_OPTION_C(POS,TEXT,...)\
-	blit_set_color(0x00FFFFFF, (pos != entries) ? 0x00FF0000 : 0x0000FF00);\
-	blit_stringf(LEFT_LABEL_X, POS+16*entries++, (TEXT));
+#define MENU_OPTION(POSY, FONTH, TEXT, ...)\
+	blit_set_color(COLOR_WHITE, (pos != entries) ? COLOR_BLUE:COLOR_GREEN);\
+	blit_stringf(LEFT_LABEL_X, POSY+FONTH*entries++, (TEXT));
 
 #define ksceKernelExitProcess               _ksceKernelExitProcess
 #define ksceKernelGetModuleInfo             _ksceKernelGetModuleInfo

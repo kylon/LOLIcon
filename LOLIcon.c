@@ -17,7 +17,7 @@
 #include <string.h>
 #include <sys/syslimits.h>
 #include <stdio.h>
-#include <math.h>
+#include <stdlib.h>
 #include "blit.h"
 #include "utils.h"
 #include "LOLIcon.h"
@@ -50,7 +50,7 @@ static uint64_t menu_timestamp;
 int error_code = NO_ERROR;
 unsigned aModeTimer = TIMER_AMODE;
 int showMenu = 0, pos = 0, isReseting = 0, forceReset = 0, isPspEmu = 0, isShell = 1;
-int page = 0, aModePowSaveTry = 2, aModeLastFps = 50, maxFps = 0, fps;
+int page = 0, aModePowSaveTry = 2, aModeLastFps = 50, maxFps = 0, fontH = 16, kfbH = 0, fps;
 long curTime = 0, lateTime = 0, lateTimeAMode = 0, lateTimeAModeR = 0, lateTimeMsg = 0, fps_count = 0;
 static char btn1[10], btn2[10], osdColorLbl[10];
 int btn1Idx = 0, btn2Idx = 0, osdColorIdx = 0;
@@ -173,7 +173,6 @@ void refreshClocks() {
 
 void load_and_refresh() {
 	error_code = load_config();
-	aModePowSaveTry = 2;
 
 	refreshClocks();
 }
@@ -517,88 +516,92 @@ int checkButtons(int port, tai_hook_ref_t ref_hook, SceCtrlData *ctrl, int count
 
 	} else if (forceReset == 2) {
 		isShell = 0;
-		load_and_refresh();
 		curTime = fps_count = lateTime = lateTimeAMode = 0;
 		lateTimeAModeR = maxFps = lateTimeMsg = forceReset = 0;
+		aModeLastFps = 50;
+		aModePowSaveTry = 2;
+
+		load_and_refresh();
 	}
 
 	return ret;
 }
 
 void drawMenu() {
-	int entries = 0;
+	int entries = 0, labelEntries = 0, posY;
 
 	blit_set_color(COLOR_WHITE, COLOR_BLUE);
 
 	switch (page) {
 		case 0:
 			blit_stringf(LEFT_LABEL_X, 72, "LOLIcon by @dots_tb");
-			blit_stringf(LEFT_LABEL_X, 88, "Version X.x by kylon");
-			MENU_OPTION_F("Save for %s", titleid);
-			MENU_OPTION("Save as Default");
-			MENU_OPTION("Clear settings");
-			MENU_OPTION("Oclock Options");
-			MENU_OPTION("OSD Options");
-			MENU_OPTION("Ctrl Options");
-			MENU_OPTION("Restart vita");
-			MENU_OPTION("Shutdown vita");
+			blit_stringf(LEFT_LABEL_X, 72+fontH, "Version Y.y by kylon");
+			MENU_OPTION_F(120, fontH, "Save for %s", titleid);
+			MENU_OPTION(120, fontH, "Save as Default");
+			MENU_OPTION(120, fontH, "Clear settings");
+			MENU_OPTION(120, fontH, "Oclock Options");
+			MENU_OPTION(120, fontH, "OSD Options");
+			MENU_OPTION(120, fontH, "Ctrl Options");
+			MENU_OPTION(120, fontH, "Restart vita");
+			MENU_OPTION(120, fontH, "Shutdown vita");
 			break;
 		case 1:
 			blit_stringf(LEFT_LABEL_X, 88, "CLOCK SETTINGS");
 
-			blit_stringf(LEFT_LABEL_X, 120, "CPU     ");
-			blit_stringf(RIGHT_LABEL_X, 120, "%-4d  MHz - %d:%d", kscePowerGetArmClockFrequency(), *clock_r1, *clock_r2);
-			blit_stringf(LEFT_LABEL_X, 136, "BUS     ");
-			blit_stringf(RIGHT_LABEL_X, 136, "%-4d  MHz", kscePowerGetBusClockFrequency());
+			blit_stringf(LEFT_LABEL_X, (posY = 120+fontH*labelEntries++), "CPU     ");
+			blit_stringf(RIGHT_LABEL_X, posY, "%-4d  MHz - %d:%d", kscePowerGetArmClockFrequency(), *clock_r1, *clock_r2);
+			blit_stringf(LEFT_LABEL_X, (posY = 120+fontH*labelEntries++), "BUS     ");
+			blit_stringf(RIGHT_LABEL_X, posY, "%-4d  MHz", kscePowerGetBusClockFrequency());
 
 			int r1, r2;
 			kscePowerGetGpuEs4ClockFrequency(&r1, &r2);
-			blit_stringf(LEFT_LABEL_X, 152, "GPUes4  ");
-			blit_stringf(RIGHT_LABEL_X, 152, "%-d   MHz", r1);
+			blit_stringf(LEFT_LABEL_X, (posY = 120+fontH*labelEntries++), "GPUes4  ");
+			blit_stringf(RIGHT_LABEL_X, posY, "%-d   MHz", r1);
 
-			blit_stringf(LEFT_LABEL_X, 168, "XBAR    ");
-			blit_stringf(RIGHT_LABEL_X, 168, "%-4d  MHz", kscePowerGetGpuXbarClockFrequency());
-			blit_stringf(LEFT_LABEL_X, 184, "GPU     ");
-			blit_stringf(RIGHT_LABEL_X, 184, "%-4d  MHz", kscePowerGetGpuClockFrequency());
+			blit_stringf(LEFT_LABEL_X, (posY = 120+fontH*labelEntries++), "XBAR    ");
+			blit_stringf(RIGHT_LABEL_X, posY, "%-4d  MHz", kscePowerGetGpuXbarClockFrequency());
+			blit_stringf(LEFT_LABEL_X, (posY = 120+fontH*labelEntries++), "GPU     ");
+			blit_stringf(RIGHT_LABEL_X, posY, "%-4d  MHz", kscePowerGetGpuClockFrequency());
 
+			posY += fontH*2;
 			if (!current_config.autoMode) {
 				switch (current_config.mode) {
 					case 0:
-						MENU_OPTION_C(216, "Profile: Max Batt.");
+						MENU_OPTION(posY, fontH, "Profile: Max Batt.");
 						break;
 					case 2:
-						MENU_OPTION_C(216, "Profile: Game Def.");
+						MENU_OPTION(posY, fontH, "Profile: Game Def.");
 						break;
 					case 3:
-						MENU_OPTION_C(216, "Profile: Max Perf.");
+						MENU_OPTION(posY, fontH, "Profile: Max Perf.");
 						break;
 					case 4:
-						MENU_OPTION_C(216, "Profile: Holy Shit.");
+						MENU_OPTION(posY, fontH, "Profile: Holy Shit.");
 						break;
 					default: // 1
-						MENU_OPTION_C(216, "Profile: Default");
+						MENU_OPTION(posY, fontH, "Profile: Default");
 						break;
 				}
 			} else {
-				MENU_OPTION_C(216, "Profile: Auto");
+				MENU_OPTION(posY, fontH, "Profile: Auto");
 			}
 
-			MENU_OPTION_FC(216, "Auto Mode %d", current_config.autoMode);
+			MENU_OPTION_F(posY, fontH, "Auto Mode %d", current_config.autoMode);
 			break;
 		case 2:
 			blit_stringf(LEFT_LABEL_X, 88, "OSD");
-			MENU_OPTION_F("Show FPS %d",current_config.showFPS);
-			MENU_OPTION_F("Show Battery %d",current_config.showBat);
-			MENU_OPTION_F("Show CPU Freq %d",current_config.showCpu);
-			MENU_OPTION_F("Show GPU Freq %d",current_config.showGpu);
-			MENU_OPTION_F("Hide Errors %d",current_config.hideErrors);
-			MENU_OPTION_F("Text Color %s",osdColorLbl);
+			MENU_OPTION_F(120, fontH, "Show FPS %d",current_config.showFPS);
+			MENU_OPTION_F(120, fontH, "Show Battery %d",current_config.showBat);
+			MENU_OPTION_F(120, fontH, "Show CPU Freq %d",current_config.showCpu);
+			MENU_OPTION_F(120, fontH, "Show GPU Freq %d",current_config.showGpu);
+			MENU_OPTION_F(120, fontH, "Hide Errors %d",current_config.hideErrors);
+			MENU_OPTION_F(120, fontH, "Text Color %s",osdColorLbl);
 			break;
 		case 3:
 			blit_stringf(LEFT_LABEL_X, 88, "CONTROL");
-			MENU_OPTION_F("Swap X/O Buttons %d", current_config.buttonSwap);
-			MENU_OPTION_F("Menu Button 1 %s", btn1);
-			MENU_OPTION_F("Menu Button 2 %s", btn2);
+			MENU_OPTION_F(120, fontH, "Swap X/O Buttons %d", current_config.buttonSwap);
+			MENU_OPTION_F(120, fontH, "Menu Button 1 %s", btn1);
+			MENU_OPTION_F(120, fontH, "Menu Button 2 %s", btn2);
 			break;
 		default:
 			break;
@@ -630,7 +633,7 @@ int getFindModNameFromPID(int pid, char *mod_name, int size) {
 }
 
 int _sceDisplaySetFrameBufInternalForDriver(int fb_id1, int fb_id2, const SceDisplayFrameBuf *pParam, int sync) {
-	int textY = 10;
+	int textX = 10;
 
 	if (isPspEmu || !fb_id1 || !pParam)
 		return TAI_CONTINUE(int, ref_hooks[0], fb_id1, fb_id2, pParam, sync);
@@ -649,10 +652,15 @@ int _sceDisplaySetFrameBufInternalForDriver(int fb_id1, int fb_id2, const SceDis
 	memcpy(&kfb, pParam, sizeof(SceDisplayFrameBuf));
 	blit_set_frame_buf(&kfb);
 
+	if (kfb.height != kfbH) {
+		kfbH = kfb.height;
+		fontH = kfbH < 544 ? 21:16;
+	}
+
 	if (showMenu)
 		drawMenu();
 
-	blit_set_color(current_config.osdColor, 0xff000000);
+	blit_set_color(current_config.osdColor, COLOR_TRANSPARENT);
 	if ((isShell && shell_pid == ksceKernelGetProcessId()) || (!isShell && current_pid == ksceKernelGetProcessId())) {
 		curTime = ksceKernelGetProcessTimeWideCore();
 
@@ -663,24 +671,24 @@ int _sceDisplaySetFrameBufInternalForDriver(int fb_id1, int fb_id2, const SceDis
 
 		if (current_config.showFPS) {
 			blit_stringf(10, 520, "FPS:%d", fps);
-			textY += 105;
+			textX += 105;
 		}
 
 		if (current_config.autoMode)
 			adjustClock();
 
 		if (current_config.showBat) {
-			blit_stringf(textY, 520, "Batt:%02d\%", kscePowerGetBatteryLifePercent());
-			textY += 140;
+			blit_stringf(textX, 520, "Batt:%02d\%", kscePowerGetBatteryLifePercent());
+			textX += 140;
 		}
 
 		if (current_config.showCpu) {
-			blit_stringf(textY, 520, "CPU:%-4d", kscePowerGetArmClockFrequency());
-			textY += 120;
+			blit_stringf(textX, 520, "CPU:%-4d", kscePowerGetArmClockFrequency());
+			textX += 120;
 		}
 
 		if (current_config.showGpu)
-			blit_stringf(textY, 520, "GPU:%-4d", kscePowerGetGpuClockFrequency());
+			blit_stringf(textX, 520, "GPU:%-4d", kscePowerGetGpuClockFrequency());
 	}
 
 	return TAI_CONTINUE(int, ref_hooks[0], fb_id1, fb_id2, pParam, sync);
@@ -770,7 +778,10 @@ int SceProcEventForDriver_414CC813(int pid, int id, int r3, int r4, int r5, int 
 	} else if ((id == 0x4 || id == 0x3) && (current_pid == pid || isPspEmu)) {
 		curTime = fps_count = lateTime = lateTimeAMode = 0;
 		lateTimeAModeR = maxFps = lateTimeMsg = isPspEmu = 0;
+		aModeLastFps = 50;
+		aModePowSaveTry = 2;
 		isShell = 1;
+
 		strncpy(titleid, "main", sizeof("main"));
 		load_and_refresh();
 	}
